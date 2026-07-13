@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Twist Bioscience — Packing Slip Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root{
+    --teal: #3F9F82;
+    --teal-dark: #2D7A63;
+    --ink: #1B1F1D;
+    --paper: #FFFFFF;
+    --mist: #F4F7F6;
+    --line: #D8E0DE;
+    --gray-head: #A6A6A6;
+  }
+  *{ box-sizing: border-box; }
+  body{
+    margin:0;
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--mist);
+    color: var(--ink);
+    padding: 32px 20px 80px;
+  }
+  .wrap{ max-width: 880px; margin: 0 auto; }
+  .brandbar{
+    height:6px;
+    background: linear-gradient(90deg, var(--teal), var(--teal-dark));
+    border-radius: 4px;
+    margin-bottom:18px;
+  }
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom: 28px; flex-wrap: wrap; gap:12px;
+  }
+  header .title h1{ font-size: 20px; margin:0 0 2px; letter-spacing:0.2px; }
+  header .title p{ margin:0; font-size:13px; color:#5b6763; }
+  header .logo{ font-weight:700; letter-spacing:6px; font-size:15px; color: var(--ink); }
+  header .logo span{ color: var(--teal); }
+
+  .card{
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 20px 22px;
+    margin-bottom: 18px;
+  }
+  .card h2{
+    font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--teal-dark); margin: 0 0 14px;
+  }
+  .grid{
+    display:grid; grid-template-columns: repeat(2, 1fr); gap: 14px 18px;
+  }
+  .field{ display:flex; flex-direction:column; gap:6px; }
+  .field.full{ grid-column: 1 / -1; }
+  label{ font-size:12px; color:#5b6763; font-weight:600; }
+  input[type=text], input[type=date], input[type=number], textarea, select{
+    border:1px solid var(--line); border-radius:6px; padding:8px 10px;
+    font-size:13.5px; font-family:inherit; background:#fff; color:var(--ink);
+  }
+  textarea{ resize: vertical; min-height:70px; }
+  input:focus, textarea:focus, select:focus{
+    outline: 2px solid var(--teal); outline-offset:1px; border-color:var(--teal);
+  }
+
+  .box-card{ border:1px solid var(--line); border-radius:10px; padding:16px 18px; margin-bottom:14px; background:#fcfdfd; }
+  .box-card-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .box-card-head h3{ margin:0; font-size:14px; }
+  .box-card-head .rm-box{ font-size:12px; color:#b3312c; background:none; border:none; cursor:pointer; font-weight:600; }
+
+  table.items{ width:100%; border-collapse:collapse; margin-bottom:10px; }
+  table.items th{
+    background: var(--gray-head); color:#fff; font-size:11px; text-transform:uppercase;
+    letter-spacing:0.03em; padding:6px 6px; text-align:left; font-weight:700;
+  }
+  table.items td{ padding:4px 5px; border-bottom:1px solid var(--line); vertical-align:top; }
+  table.items input{ width:100%; border:1px solid transparent; padding:5px 6px; font-size:12.5px; }
+  table.items input:focus{ border-color: var(--teal); outline:none; }
+  table.items td.qty input{ width:60px; }
+  .rm-row{ background:none; border:none; color:#b3312c; cursor:pointer; font-size:15px; line-height:1; padding:4px; }
+  table.items td.drag-handle{ cursor:grab; color:#b3bcb9; text-align:center; user-select:none; width:22px; padding:4px 2px; }
+  table.items td.drag-handle:active{ cursor:grabbing; }
+  table.items tr.dragging{ opacity:0.4; }
+  table.items tr.drag-over td{ border-top:2px solid var(--teal); }
+  table.items tr.drag-over-below td{ border-bottom:2px solid var(--teal); }
+  .box-card.drag-target{ border-color: var(--teal); box-shadow: 0 0 0 2px rgba(63,159,130,0.25); }
+
+  .btn{
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:13px; font-weight:600; padding:8px 14px; border-radius:6px;
+    border:1px solid var(--line); background:#fff; color:var(--ink); cursor:pointer;
+  }
+  .btn:hover{ border-color: var(--teal); color: var(--teal-dark); }
+  .btn.primary{
+    background: var(--teal); border-color: var(--teal); color:#fff;
+  }
+  .btn.primary:hover{ background: var(--teal-dark); border-color: var(--teal-dark); color:#fff; }
+  .btn.small{ font-size:12px; padding:6px 10px; }
+  .btn.danger{ color:#b3312c; border-color:#e3c3c0; }
+  .btn.danger:hover{ background:#b3312c; border-color:#b3312c; color:#fff; }
+
+  .actions{ display:flex; justify-content:space-between; align-items:center; margin-top:6px; flex-wrap:wrap; gap:10px; }
+  .footer-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:22px; }
+
+  .hint{ font-size:12px; color:#5b6763; margin-top:4px; }
+  #status{ font-size:13px; margin-left:10px; color: var(--teal-dark); font-weight:600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brandbar"></div>
+  <header>
+    <div class="title">
+      <h1>Packing Slip Generator</h1>
+      <p>Fill in shipment details once, split items across boxes, download a formatted PDF for each box.</p>
+    </div>
+    <div class="logo">T W I S T <span>·</span> BIOSCIENCE</div>
+  </header>
+
+  <div class="card">
+    <h2>Shipment Details</h2>
+    <div class="grid">
+      <div class="field">
+        <label>Ship Date</label>
+        <input type="date" id="shipDate">
+      </div>
+      <div class="field">
+        <label>PO / Reference #</label>
+        <input type="text" id="poRef" placeholder="e.g. Q-678282">
+      </div>
+      <div class="field">
+        <label>Customer Contact</label>
+        <input type="text" id="contact" placeholder="e.g. Harald Esterbauer">
+      </div>
+      <div class="field">
+        <label>Total Boxes</label>
+        <input type="text" id="totalBoxesDisplay" disabled placeholder="auto">
+      </div>
+      <div class="field full">
+        <label>Ship To (one line per address line)</label>
+        <textarea id="shipTo" placeholder="Company / Institute name
+Street address
+Department, floor
+City, Postal Code
+Country"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Boxes &amp; Contents</h2>
+    <div id="boxesContainer"></div>
+    <button class="btn" id="addBoxBtn" type="button">+ Add Another Box</button>
+  </div>
+
+  <div class="footer-actions">
+    <span id="status"></span>
+    <button class="btn danger" id="clearAllBtn" type="button">Clear All</button>
+    <button class="btn" id="importPdfBtn" type="button">Import from PDF…</button>
+    <input type="file" id="importPdfInput" accept="application/pdf,.pdf" style="display:none">
+    <button class="btn" id="saveSlipBtn" type="button">Save Slip</button>
+    <button class="btn primary" id="generateBtn" type="button">Generate PDF(s)</button>
+  </div>
+</div>
+
+<script>
+const LOGO_BASE64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHwAAAA/CAIAAACtsDsrAAAACXBIWXMAAAsSAAALEgHS3X78AAANuklEQVR42u1bW1AbV5o+5/RFal2RhCQsECDMRSCZq+3ENs7FO5OLM6lJplI7M55JXMnsTtXs0z7O1lZNdvZhax+9D1u1k31YV+1UbXZT42scX6oc24kTBwMBbGOQAMWAERchcdGlW2r1+fehMbbBxogYzdjWL4qSuvvcvv7Od/7/P92YUooKll8jBQgKoBdAL1gB9ALoBSuA/kQZ+2wOG2OsfgGAAuiPG1ZAgFbCqgANzd0aXpioLiqvtVQ8EHa1+CbdEvK0Ii5l09PJWQWUlacQXkjH/2fo9MdDp/936LN5aXGZ9ctGgUbEWDKTXH2qwPSH2kJ68ePAZ9/Fw3tL216veGEFcoAgKYux9HxSLkarYJVp9vJk97nRr92Gkr+ufc0uWB87359G0DGaSsU+n7wqZtIsYV5ztxPCLIsMIDDzxl/UvXkrHq40uoycfgWmGSr3RQJ90WA4ObN7S7NdsBaYvg4DZNeY22wNY8mp5xx+TPAKWWcJ4yuuri6q4BmO4JUCyxG2sbj2dnyyxGB36eybwoqnMuEFCGZS0YSccuisRs6Qa9lUVoqm5jQsb9dZySYse0826Gt7fhjh1a7LuiXqwWUfi6/5BIMOCAZjob5ooMFS1VjszUOLCtDAXOh6dMhvra63bl0tTU+5pmOM56XFj4OfDi3cHiwK1Vo8Aqvd1EgHI5zIJE6ELvRFg7cTU6V6p0Uwb6zFJ9VPBwCCkUTlRTlBAQjCCDZ9YhHCsIRJyqmMImOCn0V5oYj2zw4Pzo34bXX1tioEeZAXZXRxciA2XGV211k8G5aXJ3shpYgmZVHPCSRfUxYQSNk0z3AMZgou45NkhdRuAfRnw9g1/P+HOw7rdjAIWRLCe5a51VnTuxEHpSiXxN6dghvx3B44zA1UtDZcD6yQXV3FtWvXjhw5cu+hZUQ4jnv//fddLtd6upJOpz/66KOp6elfHjjQ4PMBAMZYTKX+4w9/AIC/+81vtIKgHhwYGPjvP/6xxOH421//WhCEdY5cluXDhw9PTEwcfO+9qq1bc8UrMjNz8dKl/v7+bDZLCHG73e3te7xeL0LrveuKogwFg0ePHZPS6SV6IYQAVKzNJvOrr73q8/lWd+wBTJ+anj5//ryKtfoPUQCMgFJBEN5555110lyj0YTD4TNnztRWVzf4fOrx8fHxEydOAEL79+/3epfCyK7Ozs9OnXrllVe02hwCHEVRurq6bg4MvPnmm1U5+vijo6OHDh3q6elhWVZvNGYk6fznn589e/ZvfvWr115/fZ19oJTORCKXLl5MiiJegmtpElNKnQ5nS2uL787A1wIdALb5/R/+7ncqXY8eOXq1q/NH+/fv2rULE8IwzJYtW9Y/75qamk6fOdN/8yalVO1QT09PIpVCAD09PSrolNIb/f0AqKmpCWOcE2HV4eXKcVEUT5061dnV2dzUfODnPy8tK4vFYl2dnYFgsKKycv31MAxTV1f329/+g5KVE6nU11euXO3o2LV791/t2weUagWhpqZmXfKCEHI6nTabTf3e8U0HAFTX1Oxpb+c4DiPEctz6u7XN7zcZjUNDQ4uLi0VFRQjQtz09KiV6er792c9+ijGJLy4OBYcMBn1jY+MG9FS1nIrE4/Gurm6T0Xzw4MHW1laWZd1ut9frlSTJbM4hsieEqFgBwNzc3OTkZHd3d2Vl5QsvvKA2xDDMer0XjDHHcRzH8Ty/vB7yPM9xXE6II4QqPR6XyzUTiYRGRhBCs7OzgwMDZpOpyGweGBicnY0ihEKh0NTMtMvlqqyoyFNIRZVEMsEwxKDXcxyHMWZZVq/X22y2h8G0livCsstYqegtYcWyD2MDWecs3lh6RK/Xe73eRCIxGBhECAWHguHJydaWltbW1smpqWBgECE0MDCQTCbrvfUGozEPe/MAoNPptno80Vjsvw4fvvL1lXA4nE5LatMb3hTNqeebm2XEGLe2tBw/fryv99qBA7/o7uzMyPLuPXsQgtOnz3R1de9p33ujvx8h1NzSnKugb9j0esOP33prMBC4fPlyb2+vzWq1WK3l5eV79+7dvXs3wzCb3Y1NT+02+HzmoqLh0HB0drbv+nWzydS4rRFhMJlNfdeuxWLRYDBoNpn8fn/+YhOWbWtr++ff//7ChQsDg4PJZHIkFLp+40ZHR8fBgwfffvvtP0Nw9HjNXVZW7naPjY1d/uqrW7duVXk8brcbEFRXVY2NjX355eWZmZny8vKysrJ8xoQ8z/u3bdtaXZ3JZNLpdDgcvnjx4rFjx06ePNne3u5wODaV7JsLOgBoBcHX0BAIBI4dPZpIJlvb2liORQi1tLb2DwycOH48JYr19fU6nS6fD1uproVer9fr9Rhju93ucDh6e3tvT9weGxtzOBxPfO6lpbUVEzIcChGMd2zfrh7csWMHy7LB4WGCcXNTUz5pDgDzc3PR2dlld5NhGEJIJpNhWY5l2SdeXhBC9fVes8kUj8edTmdtXZ16sK6u1ulwTE1NGfMr6AjB+Pj4vx06JKXTb7zxht/vJ4REZmZOnjo1MTHh9/urqqr+zKDLsixJkqIo36cNp7OkrLT0m6tXX3rxRat16YEpi8Xq9XoDwaC3rs5ZUrKxmlVFzkmXKAWEkEJpb2/vjf5+s9nMECJKYiKeKC+veO/dd40b9VxlWU6n00o2++hQ9sMPP1zj9NzcnMFgeG7nTrfbfTenk7u3oFAq6HT7979ReSfOxhirmZZ9L7/c2Ni4gXECQDQadTqdu3btslrX+xwWxthgMGxva/N4KrWCVhC0Go6vqal56aWXPvjgg/qGhg3ER2oyI5VKCoKuuaXZU+l5RB/W3jkSRVGWZUEQuBxj0RUmSVI6ndHp7qtHluWUKGp4XqvVbqzaVCqVzWb1en2uSKlJUEmSAECRMyyv4ThOq9V+n+BIZTrP8zzPr11PYbsO5S0oy6v38hdu+X8vgDwFPMX3bDvg+7cg1v654gi+/7j6t+LU2m3dW+SpBV0BJZkRM1Re1lCZZtWtQYwxIMjQzF15xTit3HV1VFW594IsKGpZCiBmpaQsppXMnYaoen0W7jonGZrBCC9vXIiKlJTFDM18X+/lofxCON+MXtUiRfTS7c5TY198Nz9q1RSZtcYsKKdHvyjizUaNLibNnwid750eMPJ6q1AkQ7Zzsu9y+NtFOVFqcBJCIqnoydCF67ODBt5g0ZjSSuarcHeRxqxhuaHYrY+Hz4wsjPEMW6K3p2Tp1HcXCGGzIF+Z7KuxVIhZqWv6xsXbHbPSvEvvIASPzI99MnxuZHGMAi01OB97cIQxRpRSQkje1BBjrFCFIffl/yhAIiv6izwZyE4kpt2mLYBgTorLICug3JwdqjSW2QRz93T/1qLyjCIH50fb7L5yk4vFTFqRA9ERj9ldbtyymIkjhCmii+mEQhUAkJFSZylvd23XMDwAUEynkzPhVOQHZbsXMwmE0Ly4EBVjPyjfE5cTsiKzhAGEKo1bXizbqSH8I2HJWV6yNPtJ8Mw/dfz7tzM3AeUDdJlmP/3u83+8cujsrS9XkR3CqWgstaDj+HtmBAaAVFay6y0WjYkhGCGkIfzOkm2h+PjZ0S8SskiBijRj11m2GOy1Fg9aGsjyY9B0LD7ZHwmmZQljzCBSLNhcBueF8DdqsJLFlGNYl95ZZ6nS8zqEkALZqVRkYHZIvSuPk+kY4+lk5NNbF6PpBZnKXotHxwqbCj3GOCrNfzJ8bk5KxNLx50sazdq7O2pAFavOokXMZDLaaF/iBABgTGxCUV8kYOGMDGHv0EUpN7i6ItfFbNqsNVh44/WZwER8mifc865mAKSAAggAIQBqZPXFepsMS4Yx2W73HRk5N5deQAhxhE3J0lfhLlHJ7HD4DRo9AiSwWpvOth7dzZnpRo3BZXASTNwGJ3PPuzybZwIrlBmcBKNGW7WO1y03yGCytahyQVzIYvR8SRMCxGDSWFxr4gUGk23FtSU6u4yVfe7nl983GouH927ZUSwUcZhtKK6z62wyyvqKaxAgjmHV560ZTOyClWHYvkggIkUxxizD1lk8VsHyk60/bC6uBwR2rbXZUS8qYqXJZdYaGUzMgklgdddmA1PJ6CNxzzk4whhHUrFJcdZjdBk4fX4UfV6cnxAjFYZSI6e79zYDAgUoRoglrEp/ioAgosoFRRQAWMyqRdSLGUyW12SKAIDeewFBBBAgjLJUUe+rejEgwAirD6MQtThGlFKE8dJPBFmgGGGM0SOfZt1IRIoxpkCX+rd6kUUPfmV2XQv0Q6IVjLE62vysIn+JwREAPOyVnP7ocMdUn0zlXH1NjPFCOn5pvHN04fbqxAUAYISeDsTRY8ynY4wDsdC/dv9nQk69W/ujn9S8+kDCKkqWYdjVpxSqfHTj/76c7HEZ7P/y3N9bN/pmybMFOkIokUkspOMSzYRTkQckP4H+aehcb2TwxbIdr5bvgfvprwANJ6bTSiYmzmcePlEKoK9UAF+x92DDW+OLk29X/RDdz1OMcSQZPRo6vygn5zPxl0t38uzdIAIQ8IT7wPfOufHLrcU+h876FNP8MTNdy/A/9uyjCDjCrgQNkFlr8lmreqLBbdZqjuFWwAoIfLbqOouHIST/OYZ8pzTylk/HCCfkZFSad+hsWkbzLCeT87qJgREG9YPgWQY9r6ldWP4821bYOSqAXgC9YAXQC6AX7HvY/wPYSt4Abl9iwwAAAABJRU5ErkJggg==";
+
+let boxCounter = 0;
+const boxesContainer = document.getElementById('boxesContainer');
+
+function makeItemRow(box, data){
+  data = data || {part:'', lot:'', desc:'', ship:'', storage:'', qty:''};
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td class="drag-handle" title="Drag to move this row to another box">⠿</td>
+    <td><input type="text" class="i-part" value="${data.part}"></td>
+    <td><input type="text" class="i-lot" value="${data.lot}"></td>
+    <td><input type="text" class="i-desc" value="${data.desc}"></td>
+    <td><input type="text" class="i-ship" value="${data.ship}"></td>
+    <td><input type="text" class="i-storage" value="${data.storage}"></td>
+    <td class="qty"><input type="number" min="0" class="i-qty" value="${data.qty}"></td>
+    <td><button class="rm-row" type="button" title="Remove row">✕</button></td>
+  `;
+  tr.querySelector('.rm-row').addEventListener('click', () => {
+    tr.remove();
+  });
+  attachRowDrag(tr);
+  return tr;
+}
+
+// Makes a row draggable so it can be dropped into a different box's table (or
+// reordered within the same one). Dragging is initiated from the ⠿ handle cell
+// specifically, so it doesn't fight with selecting text inside the row's inputs.
+let draggedRow = null;
+
+function attachRowDrag(tr){
+  tr.draggable = true;
+  tr.addEventListener('dragstart', (e) => {
+    draggedRow = tr;
+    tr.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    try{ e.dataTransfer.setData('text/plain', 'row'); }catch(err){}
+  });
+  tr.addEventListener('dragend', () => {
+    tr.classList.remove('dragging');
+    draggedRow = null;
+    document.querySelectorAll('tr.drag-over, tr.drag-over-below').forEach(r => r.classList.remove('drag-over','drag-over-below'));
+    document.querySelectorAll('.box-card.drag-target').forEach(c => c.classList.remove('drag-target'));
+  });
+}
+
+// Lets a box's table accept a dropped row from any box (including its own),
+// inserting it above/below whichever row the pointer is nearest to.
+function attachTbodyDropZone(tbody){
+  const boxCard = tbody.closest('.box-card');
+  tbody.addEventListener('dragover', (e) => {
+    if(!draggedRow) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    document.querySelectorAll('tr.drag-over, tr.drag-over-below').forEach(r => r.classList.remove('drag-over','drag-over-below'));
+    document.querySelectorAll('.box-card.drag-target').forEach(c => c.classList.remove('drag-target'));
+    if(boxCard) boxCard.classList.add('drag-target');
+    const targetRow = e.target.closest('tr');
+    if(targetRow && targetRow !== draggedRow){
+      const rect = targetRow.getBoundingClientRect();
+      const before = (e.clientY - rect.top) < rect.height / 2;
+      targetRow.classList.add(before ? 'drag-over' : 'drag-over-below');
+    }
+  });
+  tbody.addEventListener('drop', (e) => {
+    if(!draggedRow) return;
+    e.preventDefault();
+    document.querySelectorAll('tr.drag-over, tr.drag-over-below').forEach(r => r.classList.remove('drag-over','drag-over-below'));
+    document.querySelectorAll('.box-card.drag-target').forEach(c => c.classList.remove('drag-target'));
+    const targetRow = e.target.closest('tr');
+    if(targetRow && targetRow !== draggedRow){
+      const rect = targetRow.getBoundingClientRect();
+      const before = (e.clientY - rect.top) < rect.height / 2;
+      tbody.insertBefore(draggedRow, before ? targetRow : targetRow.nextSibling);
+    } else if(!targetRow){
+      tbody.appendChild(draggedRow);
+    }
+  });
+}
+
+function addBox(prefill){
+  boxCounter++;
+  const id = boxCounter;
+  const card = document.createElement('div');
+  card.className = 'box-card';
+  card.dataset.boxId = id;
+  card.innerHTML = `
+    <div class="box-card-head">
+      <h3>Box ${id}</h3>
+      <button class="rm-box" type="button">Remove box</button>
+    </div>
+    <table class="items">
+      <thead>
+        <tr>
+          <th style="width:3%"></th>
+          <th style="width:11%">Part #</th>
+          <th style="width:11%">Lot #</th>
+          <th style="width:32%">Description</th>
+          <th style="width:12%">Shipping</th>
+          <th style="width:10%">Storage</th>
+          <th style="width:8%">Qty</th>
+          <th style="width:4%"></th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <button class="btn small add-item" type="button">+ Add Item</button>
+  `;
+  const tbody = card.querySelector('tbody');
+  (prefill && prefill.length ? prefill : [null]).forEach(d => tbody.appendChild(makeItemRow(card, d)));
+  attachTbodyDropZone(tbody);
+
+  card.querySelector('.add-item').addEventListener('click', () => {
+    tbody.appendChild(makeItemRow(card, null));
+  });
+  card.querySelector('.rm-box').addEventListener('click', () => {
+    card.remove();
+    renumberBoxes();
+  });
+  boxesContainer.appendChild(card);
+  renumberBoxes();
+}
+
+function renumberBoxes(){
+  const cards = [...boxesContainer.querySelectorAll('.box-card')];
+  cards.forEach((c, i) => {
+    c.querySelector('h3').textContent = `Box ${i+1}`;
+  });
+  document.getElementById('totalBoxesDisplay').value = cards.length;
+}
+
+// Fills the most recently added box with items (e.g. from a PDF import) instead of
+// wiping every box back down to a single Box 1 — so "Add Another Box" then
+// "Import from PDF" lands the imported items in that new box, not the first one.
+function populateLastBoxWithItems(items){
+  const cards = [...boxesContainer.querySelectorAll('.box-card')];
+  if(cards.length === 0){
+    addBox(items && items.length ? items : null);
+    return;
+  }
+  const targetCard = cards[cards.length - 1];
+  const tbody = targetCard.querySelector('tbody');
+  tbody.innerHTML = '';
+  (items && items.length ? items : [null]).forEach(d => tbody.appendChild(makeItemRow(targetCard, d)));
+}
+
+document.getElementById('addBoxBtn').addEventListener('click', () => addBox());
+
+document.getElementById('clearAllBtn').addEventListener('click', () => {
+  const hasContent = document.getElementById('poRef').value.trim() ||
+    document.getElementById('contact').value.trim() ||
+    document.getElementById('shipTo').value.trim() ||
+    [...boxesContainer.querySelectorAll('.i-part, .i-desc, .i-qty')].some(el => el.value.trim());
+  if(hasContent && !confirm('Clear everything and start a new order? This cannot be undone (use Save Slip first if you want to keep it).')){
+    return;
+  }
+  document.getElementById('shipDate').value = new Date().toISOString().slice(0,10);
+  document.getElementById('poRef').value = '';
+  document.getElementById('contact').value = '';
+  document.getElementById('shipTo').value = '';
+  boxesContainer.innerHTML = '';
+  boxCounter = 0;
+  addBox();
+  const status = document.getElementById('status');
+  status.style.color = '#5b6763';
+  status.textContent = 'Cleared. Ready for a new order.';
+});
+
+// start with one empty box
+addBox();
+document.getElementById('shipDate').value = new Date().toISOString().slice(0,10);
+
+function buildStateObject(){
+  const cards = [...boxesContainer.querySelectorAll('.box-card')];
+  const boxes = cards.map(card => {
+    const rows = [...card.querySelectorAll('tbody tr')];
+    return rows.map(r => ({
+      part: r.querySelector('.i-part').value,
+      lot: r.querySelector('.i-lot').value,
+      desc: r.querySelector('.i-desc').value,
+      ship: r.querySelector('.i-ship').value,
+      storage: r.querySelector('.i-storage').value,
+      qty: r.querySelector('.i-qty').value,
+    }));
+  });
+  return {
+    type: 'twist-packing-slip-draft',
+    version: 1,
+    savedAt: new Date().toISOString(),
+    shipDate: document.getElementById('shipDate').value,
+    poRef: document.getElementById('poRef').value,
+    contact: document.getElementById('contact').value,
+    shipTo: document.getElementById('shipTo').value,
+    boxes,
+  };
+}
+
+document.getElementById('saveSlipBtn').addEventListener('click', () => {
+  const state = buildStateObject();
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const namePart = (state.poRef ? state.poRef.replace(/[^a-z0-9_-]/gi,'_') : 'draft');
+  a.href = url;
+  a.download = `packing_slip_${namePart}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  const status = document.getElementById('status');
+  status.style.color = '#2D7A63';
+  status.textContent = `Saved ${a.download}. Keep this file to reload your work later.`;
+});
+
+
+// ---------- Import from an existing packing-slip PDF ----------
+
+if(window.pdfjsLib){
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+}
+
+// Groups text items into visual rows using a y-tolerance rather than integer
+// rounding, since tightly-spaced or multi-line table cells can otherwise collide
+// into (or be split out of) the wrong row.
+function clusterIntoRows(items, tolerance){
+  tolerance = tolerance || 2.5;
+  const sorted = [...items].sort((a,b) => b.y - a.y);
+  const clusters = [];
+  sorted.forEach(it => {
+    const last = clusters[clusters.length-1];
+    if(last && Math.abs(last.y - it.y) <= tolerance){
+      last.items.push(it);
+      last.y = (last.y * (last.items.length-1) + it.y) / last.items.length;
+    } else {
+      clusters.push({ y: it.y, items: [it] });
+    }
+  });
+  clusters.forEach(c => c.items.sort((a,b) => a.x - b.x));
+  return clusters;
+}
+
+async function extractPdfData(file){
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const lines = [];
+  const rawItems = [];
+  for(let p = 1; p <= pdf.numPages; p++){
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    const pageItems = [];
+    content.items.forEach(item => {
+      if(!item.str || !item.str.trim()) return;
+      const obj = { str: item.str, x: item.transform[4], y: item.transform[5], width: item.width || 0 };
+      pageItems.push(obj);
+      rawItems.push(obj);
+    });
+    const clusters = clusterIntoRows(pageItems, 2.5);
+    clusters.forEach(cluster => {
+      let line = '', lastEnd = null;
+      cluster.items.forEach(it => {
+        if(lastEnd !== null && it.x - lastEnd > 8) line += '  ';
+        else if(line && !line.endsWith(' ') && !it.str.startsWith(' ')) line += ' ';
+        line += it.str;
+        lastEnd = it.x + (it.width || it.str.length * 4);
+      });
+      if(line.trim()) lines.push(line.trim());
+    });
+  }
+  return { lines, rawItems };
+}
+
+// Ship-to address is usually one column among several (Ship To / Bill To side by
+// side). We locate the "SHIP TO" label by its actual x/y position and only collect
+// text that falls within its column width, stopping at the next label, the item
+// table, or a paragraph-sized gap in line spacing.
+function extractShipToFromItems(rawItems){
+  const shipToItem = rawItems.find(it => /^SHIP TO$/i.test(it.str.trim()));
+  if(!shipToItem) return [];
+  const xStart = shipToItem.x, yHeader = shipToItem.y;
+  const billToItem = rawItems.find(it => /^BILL TO$/i.test(it.str.trim()) && Math.abs(it.y - yHeader) < 5);
+  const xBound = billToItem ? billToItem.x - 4 : xStart + 280;
+
+  const candidates = rawItems.filter(it => it.y < yHeader - 1 && it.x >= xStart - 5 && it.x < xBound);
+  const clusters = clusterIntoRows(candidates, 2.5);
+  const result = [];
+  let lastY = null;
+  for(const cluster of clusters){
+    const text = cluster.items.map(it => it.str).join(' ').trim();
+    if(!text) continue;
+    if(/PART\s*NUMBER|QUANTITY|^BILL TO$/i.test(text)) break;
+    if(lastY !== null && (lastY - cluster.y) > 20) break; // paragraph-sized gap = new section
+    result.push(text);
+    lastY = cluster.y;
+    if(result.length >= 8) break;
+  }
+  return result;
+}
+
+const HEADER_TOKEN_LINE = /PART|NUMBER|SHIPPING|STORAGE|QUANTITY|DESCRIPTION|CONDITIONS/i;
+const STOP_LINE = /^(COMMENTS|ADDRESS|TERMS)/i;
+const SHIPPING_PATTERN = /^(dry_ice|dry-ice|ambient|liquid_nitrogen|liquid-nitrogen|frozen|blue_ice|room_temperature)$/i;
+const STORAGE_PATTERN = /^(-?\d+°?c|ambient|rt|frozen)$/i;
+
+function parseItemStartLine(line){
+  const m = line.match(/^(\d{5,6})\s*(.*)$/);
+  if(!m) return null;
+  const part = m[1];
+  const tokens = m[2].split(/\s+/).filter(Boolean);
+  let qty = '', storage = '', shipping = '', lot = '';
+  if(tokens.length && /^\d+$/.test(tokens[tokens.length-1])) qty = tokens.pop();
+  if(tokens.length && STORAGE_PATTERN.test(tokens[tokens.length-1])) storage = tokens.pop();
+  if(tokens.length && SHIPPING_PATTERN.test(tokens[tokens.length-1])) shipping = tokens.pop();
+  if(tokens.length && /^(N\/A|[A-Za-z0-9]{5,})$/i.test(tokens[0]) && tokens[0] === tokens[0].toUpperCase()){
+    lot = tokens.shift();
+  }
+  return { part, lot, inline: tokens.join(' '), ship: shipping, storage, qty };
+}
+
+// Twist packing-slip PDFs often vertically-center a single-line row (part #, lot #,
+// shipping/storage, qty) against a description that wraps across 2+ lines — so part
+// of the description appears ABOVE the data row and part appears BELOW it. This finds
+// each item's data-row line, then works out how much of the surrounding text before
+// the next item belongs to "this item's tail" vs "next item's head" by looking for
+// where a new sentence (starting with "Twist") begins.
+function parseItemsFromLines(lines){
+  const trimmed = lines.map(l => l.trim());
+
+  // Restrict the search to the item table itself: from its header (anchored on the
+  // "QUANTITY" column label) down to the next section marker (Comments/Address/Terms).
+  // This keeps unrelated numbers elsewhere on the page (barcodes, postal codes) out.
+  let tableStart = trimmed.findIndex(l => /QUANTITY/i.test(l));
+  if(tableStart === -1) tableStart = 0;
+  let tableEnd = trimmed.findIndex((l, i) => i > tableStart && STOP_LINE.test(l));
+  if(tableEnd === -1) tableEnd = trimmed.length;
+
+  const itemIdx = [];
+  const itemData = [];
+  for(let i = tableStart; i < tableEnd; i++){
+    const started = parseItemStartLine(trimmed[i]);
+    if(started){ itemIdx.push(i); itemData.push(started); }
+  }
+  if(itemIdx.length === 0) return [];
+
+  // Find where the header row ends, scanning back (up to a handful of lines) from
+  // the first item for the closest line that still looks like a column header.
+  let headerEnd = -1;
+  for(let idx = itemIdx[0] - 1; idx >= Math.max(tableStart, itemIdx[0] - 7); idx--){
+    if(HEADER_TOKEN_LINE.test(trimmed[idx])){ headerEnd = idx; break; }
+  }
+  if(headerEnd === -1) headerEnd = tableStart - 1;
+
+  const before = itemData.map(() => []);
+  const after = itemData.map(() => []);
+
+  before[0] = trimmed.slice(headerEnd + 1, itemIdx[0]).filter(Boolean);
+
+  for(let i = 0; i < itemIdx.length - 1; i++){
+    const gap = trimmed.slice(itemIdx[i] + 1, itemIdx[i+1]).filter(Boolean);
+    let splitAt = -1;
+    for(let g = gap.length - 1; g >= 0; g--){
+      if(/^Twist\b/.test(gap[g])){ splitAt = g; break; }
+    }
+    if(splitAt === -1){
+      after[i] = gap;
+    } else {
+      after[i] = gap.slice(0, splitAt);
+      before[i+1] = gap.slice(splitAt);
+    }
+  }
+  const lastIdx = itemIdx.length - 1;
+  after[lastIdx] = trimmed.slice(itemIdx[lastIdx] + 1, tableEnd).filter(Boolean);
+
+  return itemData.map((it, i) => {
+    const descParts = [...before[i], it.inline, ...after[i]].filter(Boolean);
+    return {
+      part: it.part,
+      lot: it.lot,
+      desc: descParts.join(' ').replace(/\s+/g, ' ').trim(),
+      ship: it.ship,
+      storage: it.storage,
+      qty: it.qty,
+    };
+  });
+}
+
+function parsePackingSlipData({ lines, rawItems }){
+  const joined = lines.join('\n');
+
+  let shipDate = '';
+  const dateMatch = joined.match(/(\d{4}-\d{2}-\d{2})/);
+  if(dateMatch) shipDate = dateMatch[1];
+
+  let poRef = '';
+  const qMatch = joined.match(/\bQ-\d{4,}\b/);
+  if(qMatch){
+    poRef = qMatch[0];
+  } else {
+    const poIdx = lines.findIndex(l => /^PO\s*#/i.test(l.trim()));
+    if(poIdx >= 0 && lines[poIdx+1]) poRef = lines[poIdx+1].trim();
+  }
+
+  // Prefer the greeting line ("Dear X,") since header/value rows can be multi-column
+  // and easy to misalign; fall back to the CUSTOMER CONTACT column if there's no greeting.
+  let contact = '';
+  const dear = joined.match(/Dear\s+([^,\n]+),/i);
+  if(dear) contact = dear[1].trim();
+  if(!contact){
+    const ccIdx = lines.findIndex(l => /CUSTOMER CONTACT/i.test(l));
+    if(ccIdx >= 0 && lines[ccIdx+1]){
+      const valLine = lines[ccIdx+1];
+      const m = valLine.match(/^(.*?)(?:\s{2,})(\d{4}-\d{2}-\d{2})/);
+      contact = m ? m[1].trim() : valLine.replace(/\d{4}-\d{2}-\d{2}/, '').trim();
+    }
+  }
+
+  const shipToLines = extractShipToFromItems(rawItems);
+  const items = parseItemsFromLines(lines);
+
+  return { shipDate, poRef, contact, shipToLines, items };
+}
+
+document.getElementById('importPdfBtn').addEventListener('click', () => {
+  document.getElementById('importPdfInput').click();
+});
+
+document.getElementById('importPdfInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  const status = document.getElementById('status');
+  if(!file) return;
+  if(!window.pdfjsLib){
+    status.style.color = '#b3312c';
+    status.textContent = 'PDF import library did not load (check your internet connection) — try Load Saved Slip instead.';
+    e.target.value = '';
+    return;
+  }
+  status.style.color = '#5b6763';
+  status.textContent = 'Reading PDF…';
+  try{
+    const data = await extractPdfData(file);
+    const parsed = parsePackingSlipData(data);
+
+    document.getElementById('shipDate').value = parsed.shipDate || '';
+    document.getElementById('poRef').value = parsed.poRef || '';
+    document.getElementById('contact').value = parsed.contact || '';
+    document.getElementById('shipTo').value = parsed.shipToLines.join('\n');
+
+    populateLastBoxWithItems(parsed.items);
+
+    const cards = boxesContainer.querySelectorAll('.box-card');
+    const targetBoxNum = cards.length;
+    status.style.color = '#2D7A63';
+    status.textContent = `Imported ${parsed.items.length} item${parsed.items.length===1?'':'s'} from ${file.name} into Box ${targetBoxNum} — please review every field before generating, PDF import is best-effort.`;
+  }catch(err){
+    status.style.color = '#b3312c';
+    status.textContent = 'Could not read that PDF: ' + err.message;
+  }
+  e.target.value = '';
+});
+
+function collectBoxData(){
+  const cards = [...boxesContainer.querySelectorAll('.box-card')];
+  return cards.map(card => {
+    const rows = [...card.querySelectorAll('tbody tr')];
+    const items = rows.map(r => ({
+      part: r.querySelector('.i-part').value.trim(),
+      lot: r.querySelector('.i-lot').value.trim(),
+      desc: r.querySelector('.i-desc').value.trim(),
+      ship: r.querySelector('.i-ship').value.trim(),
+      storage: r.querySelector('.i-storage').value.trim(),
+      qty: r.querySelector('.i-qty').value.trim(),
+    })).filter(it => it.part || it.desc || it.qty);
+    return items;
+  });
+}
+
+function drawPackingSlip(doc, opts){
+  const { date, poRef, totalBoxes, boxNum, contact, shipToLines, items } = opts;
+  const IN = 72; // points per inch
+  const pageW = 612, pageH = 792;
+  const marginL = 0.75*IN, marginR = 7.75*IN;
+
+  // green bar
+  doc.setFillColor(63,159,130);
+  doc.rect(marginL, 0.75*IN, marginR-marginL, 0.08*IN, 'F');
+
+  // logo
+  try{
+    doc.addImage(LOGO_BASE64, 'PNG', marginL, 0.95*IN, 1.3*IN, 0.66*IN);
+  }catch(e){}
+
+  // address
+  doc.setTextColor(0,0,0);
+  doc.setFont('helvetica','normal'); doc.setFontSize(9);
+  const addr = ['Twist Bioscience','681 Gateway Blvd','South San Francisco, CA 94080','www.twistbioscience.com'];
+  let ay = 0.98*IN;
+  addr.forEach(l => { doc.text(l, 4.1*IN, ay); ay += 0.15*IN; });
+
+  // title
+  doc.setFont('helvetica','bold'); doc.setFontSize(16);
+  doc.text('Packing Slip', pageW/2, 1.95*IN, {align:'center'});
+
+  // date box
+  doc.setFont('helvetica','bold'); doc.setFontSize(9);
+  doc.setDrawColor(0,0,0);
+  doc.rect(6.1*IN, 2.35*IN, 0.85*IN, 0.22*IN);
+  doc.text('DATE', 6.16*IN, 2.5*IN);
+  doc.rect(6.95*IN, 2.35*IN, 1.15*IN, 0.22*IN);
+  doc.setFont('helvetica','normal');
+  doc.text(date || '', 7.02*IN, 2.5*IN);
+
+  // ship to header — full width, with dynamic height + wrapping so long addresses
+  // (long institution names, multi-part street lines, etc.) never get clipped.
+  const shipW = marginR - marginL;
+  let cursorY = 2.75*IN;
+  doc.setFillColor(166,166,166);
+  doc.rect(marginL, cursorY, shipW, 0.22*IN, 'F');
+  doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(9);
+  doc.text('SHIP TO', marginL+0.1*IN, cursorY+0.15*IN);
+  cursorY += 0.22*IN;
+
+  const shipBoxTop = cursorY;
+  const maxTextWidth = shipW - 0.2*IN;
+  let wrappedShipLines = [];
+  (shipToLines||[]).forEach(l => { if(l) wrappedShipLines.push(...doc.splitTextToSize(l, maxTextWidth)); });
+  const shipLineH = 0.15*IN;
+  const shipBoxH = Math.max(1.15*IN, wrappedShipLines.length*shipLineH + 0.22*IN);
+
+  doc.setTextColor(0,0,0);
+  doc.setLineDash([1,1.5],0);
+  doc.rect(marginL, shipBoxTop, shipW, shipBoxH);
+  doc.setLineDash([],0);
+  doc.setFont('helvetica','normal'); doc.setFontSize(9);
+  let sy = shipBoxTop + 0.18*IN;
+  wrappedShipLines.forEach(l => { doc.text(l, marginL+0.1*IN, sy); sy += shipLineH; });
+  cursorY = shipBoxTop + shipBoxH;
+
+  // PO/Reference header row
+  const poHeaderTop = cursorY + 0.18*IN;
+  const colX = [marginL, 2.55*IN, 3.55*IN, 4.45*IN, marginR];
+  doc.setFillColor(166,166,166);
+  doc.rect(colX[0], poHeaderTop, colX[4]-colX[0], 0.32*IN, 'F');
+  doc.setDrawColor(68,114,196);
+  colX.forEach(x => doc.line(x, poHeaderTop, x, poHeaderTop+0.32*IN));
+  doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(8);
+  doc.text('PO/Reference #', (colX[0]+colX[1])/2, poHeaderTop+0.17*IN, {align:'center'});
+  doc.text('Total Boxes', (colX[1]+colX[2])/2, poHeaderTop+0.17*IN, {align:'center'});
+  doc.text('Box #', (colX[2]+colX[3])/2, poHeaderTop+0.17*IN, {align:'center'});
+  doc.text('CUSTOMER CONTACT', (colX[3]+colX[4])/2, poHeaderTop+0.17*IN, {align:'center'});
+
+  // value row
+  const valueRowTop = poHeaderTop + 0.32*IN;
+  doc.setDrawColor(0,0,0); doc.setTextColor(0,0,0);
+  doc.rect(colX[0], valueRowTop, colX[4]-colX[0], 0.28*IN);
+  colX.slice(1,4).forEach(x => doc.line(x, valueRowTop, x, valueRowTop+0.28*IN));
+  doc.setFont('helvetica','normal'); doc.setFontSize(8);
+  doc.text(poRef||'', (colX[0]+colX[1])/2, valueRowTop+0.16*IN, {align:'center'});
+  doc.text(String(totalBoxes||''), (colX[1]+colX[2])/2, valueRowTop+0.16*IN, {align:'center'});
+  doc.text(String(boxNum||''), (colX[2]+colX[3])/2, valueRowTop+0.16*IN, {align:'center'});
+  doc.text(contact||'', (colX[3]+colX[4])/2, valueRowTop+0.16*IN, {align:'center'});
+
+  // items table
+  const icolX = [marginL, 1.55*IN, 2.35*IN, 5.35*IN, 6.35*IN, 7.05*IN, marginR];
+  const itemsTop = valueRowTop + 0.28*IN + 0.25*IN;
+  const headerH = 0.4*IN;
+  doc.setFillColor(166,166,166);
+  doc.rect(icolX[0], itemsTop, icolX[6]-icolX[0], headerH, 'F');
+  doc.setDrawColor(68,114,196);
+  icolX.forEach(x => doc.line(x, itemsTop, x, itemsTop+headerH));
+  doc.setDrawColor(0,0,0);
+  doc.rect(icolX[0], itemsTop, icolX[6]-icolX[0], headerH);
+  doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(7.5);
+  const heads = [['Part','Number'],['Lot','Number'],['Description'],['Shipping'],['Storage'],['Quantity']];
+  heads.forEach((h,i) => {
+    const cx = (icolX[i]+icolX[i+1])/2;
+    if(h.length===2){
+      doc.text(h[0], cx, itemsTop+headerH/2-2, {align:'center'});
+      doc.text(h[1], cx, itemsTop+headerH/2+8, {align:'center'});
+    } else {
+      doc.text(h[0], cx, itemsTop+headerH/2+3, {align:'center'});
+    }
+  });
+
+  doc.setTextColor(0,0,0);
+  let yCursor = itemsTop + headerH;
+  const rowH = 0.32*IN;
+  const descWidth = icolX[3]-icolX[2]-0.1*IN;
+
+  (items||[]).forEach(item => {
+    doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+    const descLines = doc.splitTextToSize(item.desc||'', descWidth);
+    const thisRowH = Math.max(rowH, 0.16*IN*descLines.length + 0.12*IN);
+
+    doc.setDrawColor(0,0,0);
+    doc.rect(icolX[0], yCursor, icolX[6]-icolX[0], thisRowH);
+    icolX.slice(1,6).forEach(x => doc.line(x, yCursor, x, yCursor+thisRowH));
+
+    doc.text(item.part||'', (icolX[0]+icolX[1])/2, yCursor+thisRowH/2+3, {align:'center'});
+    doc.text(item.lot||'', (icolX[1]+icolX[2])/2, yCursor+thisRowH/2+3, {align:'center'});
+    let ty = yCursor+0.16*IN;
+    descLines.forEach(l => { doc.text(l, icolX[2]+0.05*IN, ty); ty += 0.14*IN; });
+    doc.text(item.ship||'', (icolX[3]+icolX[4])/2, yCursor+thisRowH/2+3, {align:'center'});
+    doc.text(item.storage||'', (icolX[4]+icolX[5])/2, yCursor+thisRowH/2+3, {align:'center'});
+    doc.text(String(item.qty||''), (icolX[5]+icolX[6])/2, yCursor+thisRowH/2+3, {align:'center'});
+
+    yCursor += thisRowH;
+  });
+
+  const minRows = 6;
+  const remaining = Math.max(0, minRows - (items||[]).length);
+  for(let i=0;i<remaining;i++){
+    doc.rect(icolX[0], yCursor, icolX[6]-icolX[0], rowH);
+    icolX.slice(1,6).forEach(x => doc.line(x, yCursor, x, yCursor+rowH));
+    yCursor += rowH;
+  }
+
+  doc.setFont('helvetica','bolditalic'); doc.setFontSize(11);
+  doc.text('Thank You for your business!', pageW/2, yCursor+0.5*IN, {align:'center'});
+
+  doc.setFont('helvetica','normal'); doc.setFontSize(8);
+  doc.text('FRM-001502   Rev 1.0', marginL, 10.4*IN);
+}
+
+document.getElementById('generateBtn').addEventListener('click', () => {
+  const status = document.getElementById('status');
+  const date = document.getElementById('shipDate').value;
+  const poRef = document.getElementById('poRef').value.trim();
+  const contact = document.getElementById('contact').value.trim();
+  const shipToLines = document.getElementById('shipTo').value.split('\n');
+  const boxesData = collectBoxData();
+
+  if(boxesData.length === 0 || boxesData.every(b => b.length===0)){
+    status.textContent = 'Add at least one item to a box first.';
+    status.style.color = '#b3312c';
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'pt', format:'letter' });
+
+  boxesData.forEach((items, idx) => {
+    if(idx > 0) doc.addPage();
+    drawPackingSlip(doc, {
+      date, poRef, contact,
+      totalBoxes: boxesData.length,
+      boxNum: idx+1,
+      shipToLines,
+      items,
+    });
+  });
+
+  const filename = (poRef ? poRef.replace(/[^a-z0-9_-]/gi,'_') : 'Packing_Slips') + '.pdf';
+  doc.save(filename);
+  status.style.color = '#2D7A63';
+  status.textContent = `Downloaded ${filename} (${boxesData.length} box${boxesData.length>1?'es':''}).`;
+});
+</script>
+</body>
+</html>
